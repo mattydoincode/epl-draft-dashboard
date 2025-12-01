@@ -282,7 +282,7 @@ export default function TeamSummaries({ teamSummaries, teamColors, onColorChange
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-current border-opacity-30 text-xs opacity-75">
-                    Avg: {team.averagePoints} pts per player
+                    Avg: {team.averagePoints} pts per GW
                   </div>
                 </>
               )}

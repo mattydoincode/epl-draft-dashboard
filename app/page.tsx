@@ -108,7 +108,8 @@ export default function Home() {
   const analyzePlayersLocally = (
     bootstrapData: any,
     leagueDetailsData: any,
-    elementStatusData: any
+    elementStatusData: any,
+    allHistory?: { [entryId: number]: any }
   ): PlayerAnalysis => {
     const players = bootstrapData.elements || [];
     const elementTypes = bootstrapData.element_types || [];
@@ -136,6 +137,11 @@ export default function Home() {
     leagueEntries.forEach((entry: any) => {
       teamNameMap.set(entry.entry_id, entry);
     });
+
+    // Log history data for debugging
+    if (allHistory) {
+      console.log('[Analysis] History data available for teams:', Object.keys(allHistory));
+    }
 
     // Map league_entry IDs to entry_ids for match processing
     const leagueEntryToEntryId = new Map<number, number>();
@@ -175,6 +181,23 @@ export default function Home() {
 
     // Build team statistics
     const teamStats = new Map<number, { players: any[]; totalPoints: number }>();
+
+    // First, get actual total points from history data (most accurate!)
+    const teamActualPoints = new Map<number, number>();
+    if (allHistory) {
+      Object.entries(allHistory).forEach(([entryIdStr, historyData]) => {
+        const entryId = parseInt(entryIdStr);
+        const history = historyData.history || [];
+
+        // Get the latest total_points from history
+        if (history.length > 0) {
+          const latestWeek = history[history.length - 1];
+          teamActualPoints.set(entryId, latestWeek.total_points || 0);
+        }
+      });
+    }
+
+    // Build player lists for each team
     players.forEach((p: any) => {
       const ownerId = ownershipMap.get(p.id);
       if (ownerId) {
@@ -183,7 +206,16 @@ export default function Home() {
         }
         const stats = teamStats.get(ownerId)!;
         stats.players.push(p);
-        stats.totalPoints += p.total_points;
+      }
+    });
+
+    // Set total points from history data (or fallback to summing player points)
+    teamStats.forEach((stats, entryId) => {
+      if (teamActualPoints.has(entryId)) {
+        stats.totalPoints = teamActualPoints.get(entryId)!;
+      } else {
+        // Fallback: sum up player points (less accurate)
+        stats.totalPoints = stats.players.reduce((sum, p) => sum + p.total_points, 0);
       }
     });
 
@@ -209,6 +241,19 @@ export default function Home() {
       const losses = results.filter(r => r === 'L').length;
       const leaguePoints = (wins * 3) + (draws * 1);
 
+      // Calculate average points per gameweek from history
+      let averagePoints = 0;
+      if (allHistory && allHistory[entryId]) {
+        const history = allHistory[entryId].history || [];
+        if (history.length > 0) {
+          const totalPoints = history[history.length - 1].total_points || 0;
+          averagePoints = Math.round(totalPoints / history.length);
+        }
+      } else if (stats.players.length > 0) {
+        // Fallback to points per player
+        averagePoints = Math.round(stats.totalPoints / stats.players.length);
+      }
+
       return {
         entryId,
         teamName: entry?.entry_name || `Team ${entryId}`,
@@ -219,9 +264,7 @@ export default function Home() {
         totalPoints: stats.totalPoints,
         playerCount: stats.players.length,
         players: teamPlayers,
-        averagePoints: stats.players.length > 0
-          ? Math.round(stats.totalPoints / stats.players.length)
-          : 0,
+        averagePoints,
         matchResults: results,
         leaguePoints,
         wins,
@@ -264,28 +307,25 @@ export default function Home() {
 
     const ownedCount = enrichedPlayers.filter(p => p.owned).length;
 
-    // Build weekly scoring data from matches
+    // Build weekly scoring data from history (much more accurate!)
     const weeklyPointsMap = new Map<number, Map<number, number>>();
 
-    matches.forEach((match: any) => {
-      if (!match.finished) return;
+    if (allHistory) {
+      Object.entries(allHistory).forEach(([entryIdStr, historyData]) => {
+        const entryId = parseInt(entryIdStr);
+        const history = historyData.history || [];
 
-      const week = match.event;
-      if (!weeklyPointsMap.has(week)) {
-        weeklyPointsMap.set(week, new Map());
-      }
-      const weekData = weeklyPointsMap.get(week)!;
+        history.forEach((weekData: any) => {
+          const week = weekData.event;
+          const points = weekData.points;
 
-      const entryId1 = leagueEntryToEntryId.get(match.league_entry_1);
-      const entryId2 = leagueEntryToEntryId.get(match.league_entry_2);
-
-      if (entryId1) {
-        weekData.set(entryId1, match.league_entry_1_points);
-      }
-      if (entryId2) {
-        weekData.set(entryId2, match.league_entry_2_points);
-      }
-    });
+          if (!weeklyPointsMap.has(week)) {
+            weeklyPointsMap.set(week, new Map());
+          }
+          weeklyPointsMap.get(week)!.set(entryId, points);
+        });
+      });
+    }
 
     const weeklyData: WeeklyData[] = [];
     const weeks = Array.from(weeklyPointsMap.keys()).sort((a, b) => a - b);
@@ -365,7 +405,26 @@ export default function Home() {
           const detailsData = JSON.parse(detailsCache).data;
           const statusData = JSON.parse(statusCache).data;
 
-          const analysis = analyzePlayersLocally(staticData, detailsData, statusData);
+          // Try to load cached history if available
+          const leagueEntries = detailsData.league_entries || [];
+          const allHistory: { [entryId: number]: any } = {};
+          leagueEntries.forEach((entry: any) => {
+            const historyCache = localStorage.getItem(`pl-entry-${entry.entry_id}-history`);
+            if (historyCache) {
+              try {
+                allHistory[entry.entry_id] = JSON.parse(historyCache).data;
+              } catch (e) {
+                console.warn(`Failed to parse cached history for entry ${entry.entry_id}`);
+              }
+            }
+          });
+
+          const analysis = analyzePlayersLocally(
+            staticData,
+            detailsData,
+            statusData,
+            Object.keys(allHistory).length > 0 ? allHistory : undefined
+          );
           setPlayerAnalysis(analysis);
           setAllDataLoaded(true);
 
@@ -534,13 +593,37 @@ export default function Home() {
       );
       logs.push(`✓ Element status ${statusResult.fromCache ? 'loaded from cache' : 'fetched from API'}`);
 
-      // Step 4: Analyze players
+      // Step 4: Load history for all teams
+      setLoadingStatus('Loading team history...');
+      logs.push('Loading team history...');
+      const leagueEntries = detailsResult.data.league_entries || [];
+      const allHistory: { [entryId: number]: any } = {};
+
+      for (const entry of leagueEntries) {
+        try {
+          const historyResult = await fetchOrGetFromCache(
+            `pl-entry-${entry.entry_id}-history`,
+            '/api/prem/entry-history',
+            { bearerToken, entryId: entry.entry_id },
+            forceRefresh,
+            `history-${entry.entry_id}`
+          );
+          allHistory[entry.entry_id] = historyResult.data;
+          logs.push(`  ✓ Loaded history for ${entry.short_name}`);
+        } catch (e) {
+          console.warn(`Failed to load history for entry ${entry.entry_id}:`, e);
+          logs.push(`  ⚠ Skipped history for ${entry.short_name}`);
+        }
+      }
+
+      // Step 5: Analyze players
       setLoadingStatus('Analyzing players...');
       logs.push('Analyzing players...');
       const analysis = analyzePlayersLocally(
         staticResult.data,
         detailsResult.data,
-        statusResult.data
+        statusResult.data,
+        allHistory
       );
       setPlayerAnalysis(analysis);
       logs.push(`✓ Analyzed ${analysis.totalPlayers} players`);
