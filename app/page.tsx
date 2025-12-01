@@ -15,6 +15,7 @@ import ConfigurationPanel from './components/ConfigurationPanel';
 import TeamSummaries from './components/TeamSummaries';
 import WeeklyPointsChart from './components/WeeklyPointsChart';
 import PlayerTable from './components/PlayerTable';
+import AboutModal from './components/AboutModal';
 
 // Register Chart.js components
 ChartJS.register(
@@ -101,6 +102,7 @@ export default function Home() {
   const [playerAnalysis, setPlayerAnalysis] = useState<PlayerAnalysis | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [teamColors, setTeamColors] = useState<{ [entryId: number]: string }>({});
+  const [showAboutModal, setShowAboutModal] = useState<boolean>(false);
 
   // Player analysis function (needs to be defined before useEffect)
   const analyzePlayersLocally = (
@@ -633,12 +635,26 @@ export default function Home() {
 
       <div className={`${sidebarCollapsed ? 'ml-12' : 'ml-80'} p-8 transition-all duration-300`}>
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Premier League Fantasy Draft
-          </h1>
-          <p className="text-gray-600 mb-8">
-            Simple analysis dashboard to track team performance and player stats
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900">
+                Premier League Fantasy Draft
+              </h1>
+              <p className="text-gray-600 mt-2">
+                Simple analysis dashboard to track team performance and player stats
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAboutModal(true)}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+              title="About this app"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              About
+            </button>
+          </div>
 
           {!allDataLoaded && (
             <div className="bg-white border border-gray-200 rounded-lg p-8">
@@ -763,6 +779,8 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
     </div>
   );
 }
