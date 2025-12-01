@@ -93,7 +93,8 @@ const DEFAULT_TEAM_COLORS = [
 
 export default function Home() {
   const [bearerToken, setBearerToken] = useState<string>('');
-  const [leagueId, setLeagueId] = useState<string>('145059');
+  const [leagueId, setLeagueId] = useState<string>('');
+  const [availableLeagues, setAvailableLeagues] = useState<Array<{ id: number; name: string }>>([]);
   const [allDataLoaded, setAllDataLoaded] = useState<boolean>(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [loadingAll, setLoadingAll] = useState<boolean>(false);
@@ -335,8 +336,25 @@ export default function Home() {
       try {
         const staticCache = localStorage.getItem('pl-bootstrap-static');
         const dynamicCache = localStorage.getItem('pl-bootstrap-dynamic');
-        const detailsCache = savedLeagueId ? localStorage.getItem(`pl-league-${savedLeagueId}-details`) : null;
-        const statusCache = savedLeagueId ? localStorage.getItem(`pl-league-${savedLeagueId}-element-status`) : null;
+
+        if (dynamicCache) {
+          // Extract leagues from cached dynamic data
+          const dynamicData = JSON.parse(dynamicCache).data;
+          const leagues = dynamicData.leagues || [];
+          setAvailableLeagues(leagues);
+
+          // Auto-select league if not already set
+          if (!savedLeagueId && leagues.length > 0) {
+            const activeLeague = dynamicData.active?.league;
+            const selectedId = activeLeague ? String(activeLeague) : String(leagues[0].id);
+            setLeagueId(selectedId);
+            localStorage.setItem('leagueId', selectedId);
+          }
+        }
+
+        const currentLeagueId = savedLeagueId || (dynamicCache && JSON.parse(dynamicCache).data.active?.league);
+        const detailsCache = currentLeagueId ? localStorage.getItem(`pl-league-${currentLeagueId}-details`) : null;
+        const statusCache = currentLeagueId ? localStorage.getItem(`pl-league-${currentLeagueId}-element-status`) : null;
 
         if (staticCache && dynamicCache && detailsCache && statusCache) {
           console.log('[Frontend] Found cached data, loading automatically...');
@@ -432,17 +450,13 @@ export default function Home() {
       return;
     }
 
-    if (!leagueId.trim()) {
-      alert('Please enter a league ID');
-      return;
-    }
-
     setLoadingAll(true);
     setAllDataLoaded(false);
     setPlayerAnalysis(null);
     const logs: string[] = [];
 
     try {
+      // Step 1: Load static and dynamic data
       setLoadingStatus('Loading static data...');
       logs.push('Loading static data...');
       const staticResult = await fetchOrGetFromCache(
@@ -465,12 +479,43 @@ export default function Home() {
       );
       logs.push(`✓ Dynamic data ${dynamicResult.fromCache ? 'loaded from cache' : 'fetched from API'}`);
 
+      // Step 2: Extract leagues from dynamic data
+      const leagues = dynamicResult.data.leagues || [];
+      const activeLeague = dynamicResult.data.active?.league;
+
+      if (leagues.length === 0) {
+        throw new Error('No leagues found for this user');
+      }
+
+      setAvailableLeagues(leagues);
+
+      // Auto-select league
+      let selectedLeagueId: string;
+      if (leagues.length === 1) {
+        selectedLeagueId = String(leagues[0].id);
+        setLeagueId(selectedLeagueId);
+        logs.push(`✓ Auto-selected league: ${leagues[0].name}`);
+      } else if (activeLeague) {
+        selectedLeagueId = String(activeLeague);
+        setLeagueId(selectedLeagueId);
+        const activeLg = leagues.find((l: any) => l.id === activeLeague);
+        logs.push(`✓ Auto-selected active league: ${activeLg?.name || selectedLeagueId}`);
+      } else if (leagueId) {
+        selectedLeagueId = leagueId;
+        logs.push(`✓ Using selected league ID: ${leagueId}`);
+      } else {
+        selectedLeagueId = String(leagues[0].id);
+        setLeagueId(selectedLeagueId);
+        logs.push(`✓ Auto-selected first league: ${leagues[0].name}`);
+      }
+
+      // Step 3: Load league-specific data
       setLoadingStatus('Loading league details...');
       logs.push('Loading league details...');
       const detailsResult = await fetchOrGetFromCache(
-        `pl-league-${leagueId}-details`,
+        `pl-league-${selectedLeagueId}-details`,
         '/api/prem/league-details',
-        { bearerToken, leagueId },
+        { bearerToken, leagueId: selectedLeagueId },
         forceRefresh,
         'league-details'
       );
@@ -479,14 +524,15 @@ export default function Home() {
       setLoadingStatus('Loading element status (ownership)...');
       logs.push('Loading element status...');
       const statusResult = await fetchOrGetFromCache(
-        `pl-league-${leagueId}-element-status`,
+        `pl-league-${selectedLeagueId}-element-status`,
         '/api/prem/league-element-status',
-        { bearerToken, leagueId },
+        { bearerToken, leagueId: selectedLeagueId },
         forceRefresh,
         'element-status'
       );
       logs.push(`✓ Element status ${statusResult.fromCache ? 'loaded from cache' : 'fetched from API'}`);
 
+      // Step 4: Analyze players
       setLoadingStatus('Analyzing players...');
       logs.push('Analyzing players...');
       const analysis = analyzePlayersLocally(
@@ -575,6 +621,7 @@ export default function Home() {
         setBearerToken={setBearerToken}
         leagueId={leagueId}
         setLeagueId={setLeagueId}
+        availableLeagues={availableLeagues}
         loadingAll={loadingAll}
         allDataLoaded={allDataLoaded}
         loadingStatus={loadingStatus}
@@ -673,7 +720,10 @@ export default function Home() {
                     <h4 className="font-semibold text-gray-900 mb-2">Step 8: Load Your Data</h4>
                     <p className="text-gray-700">
                       Click the <strong className="bg-blue-600 text-white px-3 py-1 rounded text-sm">Load All Data</strong> button in the left sidebar.
-                      Your league data will be fetched and cached locally!
+                      Your league will be auto-detected and all data will be fetched and cached locally!
+                    </p>
+                    <p className="text-gray-700 mt-2 text-sm">
+                      <em>If you're in multiple leagues, you'll be able to select which one to view.</em>
                     </p>
                   </div>
                 </div>

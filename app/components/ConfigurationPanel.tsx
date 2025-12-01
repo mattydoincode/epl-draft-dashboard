@@ -5,6 +5,7 @@ interface ConfigurationPanelProps {
   setBearerToken: (token: string) => void;
   leagueId: string;
   setLeagueId: (id: string) => void;
+  availableLeagues: Array<{ id: number; name: string }>;
   loadingAll: boolean;
   allDataLoaded: boolean;
   loadingStatus: string;
@@ -19,6 +20,7 @@ export default function ConfigurationPanel({
   setBearerToken,
   leagueId,
   setLeagueId,
+  availableLeagues,
   loadingAll,
   allDataLoaded,
   loadingStatus,
@@ -73,19 +75,38 @@ export default function ConfigurationPanel({
               />
             </div>
 
-            <div>
-              <label htmlFor="league-id" className="block text-sm font-medium text-gray-700 mb-2">
-                League ID
-              </label>
-              <input
-                id="league-id"
-                type="text"
-                value={leagueId}
-                onChange={(e) => setLeagueId(e.target.value)}
-                placeholder="Enter league ID..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-              />
-            </div>
+            {availableLeagues.length > 0 && (
+              <div>
+                <label htmlFor="league-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  {availableLeagues.length > 1 ? 'Select League' : 'League'}
+                </label>
+                {availableLeagues.length === 1 ? (
+                  <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    {availableLeagues[0].name}
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      id="league-select"
+                      value={leagueId}
+                      onChange={(e) => setLeagueId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      {availableLeagues.map(league => (
+                        <option key={league.id} value={league.id}>
+                          {league.name}
+                        </option>
+                      ))}
+                    </select>
+                    {allDataLoaded && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Change league and click "Refresh from API" to reload data
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="border-t border-gray-200 pt-4 space-y-3">
               <button
