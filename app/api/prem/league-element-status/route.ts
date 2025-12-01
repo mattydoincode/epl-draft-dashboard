@@ -1,31 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
 
 export async function POST(request: NextRequest) {
   try {
-    const { bearerToken, leagueId, forceRefresh } = await request.json();
+    const { bearerToken, leagueId } = await request.json();
 
     if (!leagueId) {
       return NextResponse.json(
         { error: 'League ID is required' },
         { status: 400 }
       );
-    }
-
-    const cacheFilePath = path.join(DATA_DIR, `league-${leagueId}-element-status.json`);
-
-    // Check if cached data exists and return it if not forcing refresh
-    if (!forceRefresh && fs.existsSync(cacheFilePath)) {
-      console.log(`[Backend] Returning cached element status for league ${leagueId}`);
-      const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf-8'));
-      return NextResponse.json({
-        ...cachedData,
-        _cached: true,
-        _cachedAt: fs.statSync(cacheFilePath).mtime.toISOString(),
-      });
     }
 
     if (!bearerToken) {
@@ -44,7 +27,7 @@ export async function POST(request: NextRequest) {
     const authHeader = `Bearer ${cleanToken}`;
     const url = `https://draft.premierleague.com/api/league/${leagueId}/element-status`;
 
-    console.log(`[Backend] Calling Premier League API: ${url}`);
+    console.log(`[Backend] Proxying request to Premier League API: ${url}`);
 
     const startTime = Date.now();
     const res = await fetch(url, {
@@ -70,19 +53,7 @@ export async function POST(request: NextRequest) {
     const data = await res.json();
     console.log(`[Backend] Success! Response data keys: ${Object.keys(data).join(', ')}`);
 
-    // Save to cache file
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    fs.writeFileSync(cacheFilePath, JSON.stringify(data, null, 2));
-    console.log(`[Backend] Cached data saved to: ${cacheFilePath}`);
-
-    return NextResponse.json({
-      ...data,
-      _cached: false,
-      _fetchedAt: new Date().toISOString(),
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('[Backend] Exception:', error);
     return NextResponse.json(
@@ -91,4 +62,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

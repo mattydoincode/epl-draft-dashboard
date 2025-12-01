@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const CACHE_FILE_PATH = path.join(process.cwd(), 'data', 'bootstrap-dynamic.json');
 
 export async function POST(request: NextRequest) {
   try {
-    const { bearerToken, forceRefresh } = await request.json();
-
-    // Check if cached data exists and return it if not forcing refresh
-    if (!forceRefresh && fs.existsSync(CACHE_FILE_PATH)) {
-      console.log('[Backend] Returning cached bootstrap-dynamic data');
-      const cachedData = JSON.parse(fs.readFileSync(CACHE_FILE_PATH, 'utf-8'));
-      return NextResponse.json({
-        ...cachedData,
-        _cached: true,
-        _cachedAt: fs.statSync(CACHE_FILE_PATH).mtime.toISOString(),
-      });
-    }
+    const { bearerToken } = await request.json();
 
     if (!bearerToken) {
       return NextResponse.json(
@@ -35,7 +20,7 @@ export async function POST(request: NextRequest) {
     const authHeader = `Bearer ${cleanToken}`;
     const url = 'https://draft.premierleague.com/api/bootstrap-dynamic';
 
-    console.log(`[Backend] Calling Premier League API: ${url}`);
+    console.log(`[Backend] Proxying request to Premier League API: ${url}`);
     console.log(`[Backend] Token length: ${cleanToken.length} characters`);
 
     const startTime = Date.now();
@@ -62,21 +47,7 @@ export async function POST(request: NextRequest) {
     const data = await res.json();
     console.log(`[Backend] Success! Response data keys: ${Object.keys(data).join(', ')}`);
 
-    // Save to cache file
-    const dataDir = path.dirname(CACHE_FILE_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-      console.log(`[Backend] Created data directory: ${dataDir}`);
-    }
-
-    fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(data, null, 2));
-    console.log(`[Backend] Cached data saved to: ${CACHE_FILE_PATH}`);
-
-    return NextResponse.json({
-      ...data,
-      _cached: false,
-      _fetchedAt: new Date().toISOString(),
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('[Backend] Exception:', error);
     return NextResponse.json(
@@ -85,4 +56,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
