@@ -560,6 +560,14 @@ export default function Home() {
     return colorClasses.split(' ')[1];
   };
 
+  const getTeamColor = (ownerId: number | null) => {
+    if (!ownerId || !playerAnalysis) return 'bg-gray-50';
+    const teamIndex = playerAnalysis.teamSummaries.findIndex(t => t.entryId === ownerId);
+    if (teamIndex === -1) return 'bg-gray-50';
+    const colorClasses = getTeamColorClasses(ownerId, teamIndex);
+    return colorClasses.split(' ')[0];
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ConfigurationPanel
@@ -699,6 +707,7 @@ export default function Home() {
                 playerAnalysis={playerAnalysis}
                 getTeamColorClasses={getTeamColorClasses}
                 getPlayerBorderColor={getPlayerBorderColor}
+                getTeamColor={getTeamColor}
               />
             </div>
           )}
