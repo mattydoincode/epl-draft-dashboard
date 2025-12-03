@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import LoginModal from './LoginModal';
+
 interface ConfigurationPanelProps {
   bearerToken: string;
   setBearerToken: (token: string) => void;
@@ -29,6 +32,12 @@ export default function ConfigurationPanel({
   handleLoadAllData,
   handleClearCache,
 }: ConfigurationPanelProps) {
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  const handleTokenReceived = (token: string) => {
+    setBearerToken(token);
+  };
+
   return (
     <>
       {sidebarCollapsed ? (
@@ -73,6 +82,15 @@ export default function ConfigurationPanel({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-xs"
                 rows={6}
               />
+              <button
+                onClick={() => setLoginModalOpen(true)}
+                className="w-full mt-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                <span>Login with Browser</span>
+              </button>
             </div>
 
             {availableLeagues.length > 0 && (
@@ -148,6 +166,12 @@ export default function ConfigurationPanel({
           </div>
         </div>
       )}
+
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        onTokenReceived={handleTokenReceived}
+      />
     </>
   );
 }
