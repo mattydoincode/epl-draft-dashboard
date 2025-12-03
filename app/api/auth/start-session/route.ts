@@ -20,15 +20,15 @@ export async function POST() {
 
     const bb = new Browserbase({ apiKey });
 
-    // Create a new browser session
+    // Create a new browser session with mobile viewport for faster loading
     const session = await bb.sessions.create({
       projectId,
       keepAlive: true,
-      timeout: 60, // 1 minute timeout
+      timeout: 120, // 2 minute timeout
       browserSettings: {
         viewport: {
-          width: 1280,
-          height: 720,
+          width: 375,
+          height: 812,
         },
       },
     });
@@ -40,6 +40,11 @@ export async function POST() {
     const browser = await chromium.connectOverCDP(session.connectUrl);
     const defaultContext = browser.contexts()[0];
     const page = defaultContext.pages()[0];
+
+    // Set mobile user agent for faster mobile site loading
+    await page.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    });
 
     // Store the browser instance for later cleanup
     setSession(session.id, browser);
